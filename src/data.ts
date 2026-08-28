@@ -244,9 +244,9 @@ function validateWindow(value: unknown, index: number): DoseWindow {
   const medicineLabels = new Set<string>()
   for (const medicine of medicines) {
     if (medicineIds.has(medicine.id)) invalidBackup(`${detail} duplicate medicine IDs`)
-    if (medicineLabels.has(medicine.label.trim().toLocaleLowerCase())) invalidBackup(`${detail} duplicate medicine labels`)
+    if (medicineLabels.has(medicine.label.trim().toLowerCase())) invalidBackup(`${detail} duplicate medicine labels`)
     medicineIds.add(medicine.id)
-    medicineLabels.add(medicine.label.trim().toLocaleLowerCase())
+    medicineLabels.add(medicine.label.trim().toLowerCase())
   }
   return {
     id: requiredString(value, 'id', `${detail} ID`),
