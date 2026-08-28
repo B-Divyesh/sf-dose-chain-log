@@ -50,6 +50,9 @@ const DB_NAME = 'dose-chain-log'
 const DB_VERSION = 1
 const stores = ['windows', 'logs', 'followUps'] as const
 type StoreName = (typeof stores)[number]
+const followUpIntervals = new Set([15, 30, 60, 120, 240, 360, 480, 720, 1440])
+const doseStatuses = new Set<DoseStatus>(['taken', 'skipped', 'late'])
+const followUpStatuses = new Set<FollowUp['status']>(['pending', 'taken', 'skipped'])
 
 let dbPromise: Promise<IDBDatabase> | undefined
 
@@ -194,21 +197,167 @@ export async function undoFollowUp(followUp: FollowUp, logId: string, nextId?: s
   await Promise.all([put('followUps', followUp), remove('logs', logId), ...(nextId ? [remove('followUps', nextId)] : [])])
 }
 
-export async function importBackup(value: unknown): Promise<void> {
-  if (!value || typeof value !== 'object') throw new Error('This is not a Dose Chain Log backup.')
-  const backup = value as Partial<Backup>
-  if (backup.version !== 1 || !Array.isArray(backup.windows) || !Array.isArray(backup.logs) || !Array.isArray(backup.followUps)) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function invalidBackup(detail: string): never {
+  throw new Error(`This backup has invalid ${detail}. Your current log was not changed.`)
+}
+
+function requiredString(record: Record<string, unknown>, field: string, detail: string): string {
+  const value = record[field]
+  if (typeof value !== 'string' || !value.trim()) invalidBackup(detail)
+  return value
+}
+
+function requiredTimestamp(record: Record<string, unknown>, field: string, detail: string): string {
+  const value = requiredString(record, field, detail)
+  if (!Number.isFinite(Date.parse(value))) invalidBackup(detail)
+  return value
+}
+
+function requiredTime(record: Record<string, unknown>, field: string, detail: string): string {
+  const value = requiredString(record, field, detail)
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) invalidBackup(detail)
+  return value
+}
+
+function validateWindow(value: unknown, index: number): DoseWindow {
+  const detail = `window ${index + 1}`
+  if (!isRecord(value)) invalidBackup(detail)
+  if (!Array.isArray(value.medicines) || value.medicines.length === 0) invalidBackup(`${detail} medicines`)
+  const medicines = value.medicines.map((medicine, medicineIndex): Medicine => {
+    if (!isRecord(medicine)) invalidBackup(`${detail} medicine ${medicineIndex + 1}`)
+    const interval = medicine.followUpMinutes
+    if (interval !== null && (typeof interval !== 'number' || !followUpIntervals.has(interval))) {
+      invalidBackup(`${detail} medicine ${medicineIndex + 1} follow-up interval`)
+    }
+    return {
+      id: requiredString(medicine, 'id', `${detail} medicine ${medicineIndex + 1} ID`),
+      label: requiredString(medicine, 'label', `${detail} medicine ${medicineIndex + 1} label`),
+      followUpMinutes: interval,
+    }
+  })
+  const medicineIds = new Set<string>()
+  const medicineLabels = new Set<string>()
+  for (const medicine of medicines) {
+    if (medicineIds.has(medicine.id)) invalidBackup(`${detail} duplicate medicine IDs`)
+    if (medicineLabels.has(medicine.label.trim().toLocaleLowerCase())) invalidBackup(`${detail} duplicate medicine labels`)
+    medicineIds.add(medicine.id)
+    medicineLabels.add(medicine.label.trim().toLocaleLowerCase())
+  }
+  return {
+    id: requiredString(value, 'id', `${detail} ID`),
+    label: requiredString(value, 'label', `${detail} label`),
+    time: requiredTime(value, 'time', `${detail} planned time`),
+    medicines,
+    createdAt: requiredTimestamp(value, 'createdAt', `${detail} creation time`),
+  }
+}
+
+function validateLog(value: unknown, index: number): LogEntry {
+  const detail = `event ${index + 1}`
+  if (!isRecord(value)) invalidBackup(detail)
+  const status = requiredString(value, 'status', `${detail} status`)
+  if (!doseStatuses.has(status as DoseStatus)) invalidBackup(`${detail} status`)
+  const sourceFollowUpId = value.sourceFollowUpId
+  if (sourceFollowUpId !== undefined && (typeof sourceFollowUpId !== 'string' || !sourceFollowUpId.trim())) {
+    invalidBackup(`${detail} source follow-up ID`)
+  }
+  return {
+    id: requiredString(value, 'id', `${detail} ID`),
+    windowId: requiredString(value, 'windowId', `${detail} window ID`),
+    windowLabel: requiredString(value, 'windowLabel', `${detail} window label`),
+    medicineId: requiredString(value, 'medicineId', `${detail} medicine ID`),
+    medicineLabel: requiredString(value, 'medicineLabel', `${detail} medicine label`),
+    status: status as DoseStatus,
+    scheduledFor: requiredTimestamp(value, 'scheduledFor', `${detail} scheduled time`),
+    recordedAt: requiredTimestamp(value, 'recordedAt', `${detail} recorded time`),
+    ...(sourceFollowUpId === undefined ? {} : { sourceFollowUpId }),
+  }
+}
+
+function validateFollowUp(value: unknown, index: number): FollowUp {
+  const detail = `follow-up ${index + 1}`
+  if (!isRecord(value)) invalidBackup(detail)
+  const status = requiredString(value, 'status', `${detail} status`)
+  if (!followUpStatuses.has(status as FollowUp['status'])) invalidBackup(`${detail} status`)
+  const interval = value.intervalMinutes
+  if (typeof interval !== 'number' || !followUpIntervals.has(interval)) invalidBackup(`${detail} interval`)
+  const completedAt = value.completedAt
+  if (status === 'pending' && completedAt !== undefined) invalidBackup(`${detail} completion time`)
+  if (status !== 'pending' && (typeof completedAt !== 'string' || !completedAt.trim() || !Number.isFinite(Date.parse(completedAt)))) {
+    invalidBackup(`${detail} completion time`)
+  }
+  return {
+    id: requiredString(value, 'id', `${detail} ID`),
+    sourceLogId: requiredString(value, 'sourceLogId', `${detail} source event ID`),
+    windowId: requiredString(value, 'windowId', `${detail} window ID`),
+    medicineId: requiredString(value, 'medicineId', `${detail} medicine ID`),
+    medicineLabel: requiredString(value, 'medicineLabel', `${detail} medicine label`),
+    dueAt: requiredTimestamp(value, 'dueAt', `${detail} due time`),
+    intervalMinutes: interval,
+    status: status as FollowUp['status'],
+    ...(completedAt === undefined ? {} : { completedAt: completedAt as string }),
+  }
+}
+
+function assertUniqueIds(records: Array<{ id: string }>, name: string): void {
+  const ids = new Set<string>()
+  for (const record of records) {
+    if (ids.has(record.id)) invalidBackup(`duplicate ${name} IDs`)
+    ids.add(record.id)
+  }
+}
+
+/** Validates a v1 backup completely before import can open a write transaction. */
+export function validateBackup(value: unknown): Backup {
+  if (!isRecord(value)) throw new Error('This is not a Dose Chain Log backup.')
+  if (value.version !== 1 || !Array.isArray(value.windows) || !Array.isArray(value.logs) || !Array.isArray(value.followUps)) {
     throw new Error('This backup version is not supported.')
   }
+  const exportedAt = requiredTimestamp(value, 'exportedAt', 'export time')
+  const windows = value.windows.map(validateWindow)
+  const logs = value.logs.map(validateLog)
+  const followUps = value.followUps.map(validateFollowUp)
+  assertUniqueIds(windows, 'window')
+  assertUniqueIds(logs, 'event')
+  assertUniqueIds(followUps, 'follow-up')
+
+  const logsById = new Map(logs.map(log => [log.id, log]))
+  const followUpsById = new Map(followUps.map(followUp => [followUp.id, followUp]))
+  for (const followUp of followUps) {
+    const sourceLog = logsById.get(followUp.sourceLogId)
+    if (!sourceLog || sourceLog.status === 'skipped' || sourceLog.windowId !== followUp.windowId || sourceLog.medicineId !== followUp.medicineId || sourceLog.medicineLabel !== followUp.medicineLabel) {
+      invalidBackup(`follow-up source event reference`)
+    }
+  }
+  for (const log of logs) {
+    if (!log.sourceFollowUpId) continue
+    const sourceFollowUp = followUpsById.get(log.sourceFollowUpId)
+    if (!sourceFollowUp || sourceFollowUp.status === 'pending' || sourceFollowUp.windowId !== log.windowId || sourceFollowUp.medicineId !== log.medicineId || sourceFollowUp.medicineLabel !== log.medicineLabel || sourceFollowUp.status !== log.status) {
+      invalidBackup(`event source follow-up reference`)
+    }
+  }
+  // Windows can be removed while their factual events and active chains remain.
+  // Those historic references are intentionally valid and must survive export/import.
+  return { version: 1, exportedAt, windows, logs, followUps }
+}
+
+export async function importBackup(value: unknown): Promise<void> {
+  const backup = validateBackup(value)
   const database = await db()
   await new Promise<void>((resolve, reject) => {
     const tx = database.transaction(stores, 'readwrite')
     for (const store of stores) tx.objectStore(store).clear()
-    for (const item of backup.windows!) tx.objectStore('windows').put(item)
-    for (const item of backup.logs!) tx.objectStore('logs').put(item)
-    for (const item of backup.followUps!) tx.objectStore('followUps').put(item)
+    for (const item of backup.windows) tx.objectStore('windows').put(item)
+    for (const item of backup.logs) tx.objectStore('logs').put(item)
+    for (const item of backup.followUps) tx.objectStore('followUps').put(item)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error ?? new Error('Could not import that backup.'))
   })
 }
 

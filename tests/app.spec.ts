@@ -82,6 +82,49 @@ test('persists locally and works after the network goes offline', async ({ page,
   await expect(page.locator('#toast').getByText('1 medicine logged taken now.')).toBeVisible()
 })
 
+test('rejects malformed backups atomically and keeps the current log usable', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', error => pageErrors.push(error.message))
+  await page.getByRole('button', { name: 'Create first window' }).click()
+  await page.getByLabel('Window name').fill('Keep this window')
+  await page.getByLabel('Medicine name').fill('Medicine A')
+  await page.getByRole('button', { name: 'Save window' }).click()
+  await page.getByRole('button', { name: 'More' }).click()
+
+  const invalidBackups = [
+    { name: 'malformed-window.json', payload: { version: 1, windows: [{ id: 'bad' }], logs: [], followUps: [] }, error: /invalid export time/i },
+    {
+      name: 'malformed-log.json',
+      payload: {
+        version: 1, exportedAt: '2026-08-28T08:00:00.000Z', windows: [],
+        logs: [{ id: 'log', windowId: 'w', windowLabel: 'Window', medicineId: 'm', medicineLabel: 'Medicine', status: 'unknown', scheduledFor: '2026-08-28T08:00:00.000Z', recordedAt: '2026-08-28T08:00:00.000Z' }], followUps: [],
+      }, error: /invalid event 1 status/i,
+    },
+    {
+      name: 'malformed-follow-up.json',
+      payload: {
+        version: 1, exportedAt: '2026-08-28T08:00:00.000Z', windows: [], logs: [],
+        followUps: [{ id: 'follow', sourceLogId: 'missing', windowId: 'w', medicineId: 'm', medicineLabel: 'Medicine', dueAt: '2026-08-28T08:15:00.000Z', intervalMinutes: 15, status: 'pending' }],
+      }, error: /invalid follow-up source event reference/i,
+    },
+  ]
+
+  for (const backup of invalidBackups) {
+    await page.getByLabel('Import JSON').setInputFiles({ name: backup.name, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup.payload)) })
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Replace and import' }).click()
+    await expect(dialog.locator('#import-error')).toHaveText(backup.error)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).not.toBeVisible()
+  }
+
+  await page.getByRole('button', { name: 'Today' }).click()
+  await expect(page.getByRole('heading', { name: 'Keep this window' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Keep this window' })).toBeVisible()
+  expect(pageErrors).toEqual([])
+})
+
 test('has no serious accessibility violations on empty and configured states', async ({ page }) => {
   let results = await new AxeBuilder({ page }).analyze()
   expect(results.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([])

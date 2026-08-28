@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { dueLabel, formatInterval, localDay, logsToCsv, scheduledAt, type LogEntry } from './data'
+import { dueLabel, formatInterval, localDay, logsToCsv, scheduledAt, validateBackup, type Backup, type LogEntry } from './data'
+
+const validBackup = (): Backup => ({
+  version: 1,
+  exportedAt: '2026-08-28T08:00:00.000Z',
+  windows: [{
+    id: 'window-1', label: 'Morning', time: '08:00', createdAt: '2026-08-28T07:00:00.000Z',
+    medicines: [{ id: 'medicine-1', label: 'Medicine A', followUpMinutes: 15 }],
+  }],
+  logs: [{
+    id: 'log-1', windowId: 'window-1', windowLabel: 'Morning', medicineId: 'medicine-1', medicineLabel: 'Medicine A',
+    status: 'taken', scheduledFor: '2026-08-28T08:00:00.000Z', recordedAt: '2026-08-28T08:01:00.000Z',
+  }],
+  followUps: [{
+    id: 'follow-1', sourceLogId: 'log-1', windowId: 'window-1', medicineId: 'medicine-1', medicineLabel: 'Medicine A',
+    dueAt: '2026-08-28T08:16:00.000Z', intervalMinutes: 15, status: 'pending',
+  }],
+})
 
 describe('dose time helpers', () => {
   it('formats actual-time intervals without fractional units', () => {
@@ -33,5 +50,27 @@ describe('CSV export', () => {
     const csv = logsToCsv([log])
     expect(csv).toContain('"Morning, main"')
     expect(csv).toContain('"Label ""A"""')
+  })
+})
+
+describe('backup validation', () => {
+  it('rejects malformed window, event, and follow-up records before import', () => {
+    const malformedWindow = validBackup()
+    malformedWindow.windows = [{ id: 'bad' } as never]
+    expect(() => validateBackup(malformedWindow)).toThrow(/invalid window 1 medicines/i)
+
+    const malformedLog = validBackup()
+    malformedLog.logs[0] = { ...malformedLog.logs[0]!, status: 'unknown' as never }
+    expect(() => validateBackup(malformedLog)).toThrow(/invalid event 1 status/i)
+
+    const malformedFollowUp = validBackup()
+    malformedFollowUp.followUps[0] = { ...malformedFollowUp.followUps[0]!, sourceLogId: 'missing-log' }
+    expect(() => validateBackup(malformedFollowUp)).toThrow(/invalid follow-up source event reference/i)
+  })
+
+  it('accepts factual history that remains after a window is deleted', () => {
+    const backup = validBackup()
+    backup.windows = []
+    expect(validateBackup(backup)).toEqual(backup)
   })
 })
