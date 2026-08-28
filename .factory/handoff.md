@@ -4,7 +4,7 @@ Date: 2026-08-28
 Work order: `dose-chain-log-repair-2`
 Base verifier report: `8cf875e97715d5104abfa9d63170551ab21b3117`
 Rejected candidate: `90f9be9c5a097196055bb510e80103f0804e2812`
-Repair commits: `33ebe7a4e12fbe80dfcc1a970c69a7076a8b9412`, `8994731`
+Repair commits: `33ebe7a4e12fbe80dfcc1a970c69a7076a8b9412`, `89947315c2ee6b6efd9aeec26e612b5a4331a8a7`
 Live URL: <https://dose-chain-log.sociobot.in>
 
 ## Result
