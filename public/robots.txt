@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dose-chain-log.sociobot.in/sitemap.xml
