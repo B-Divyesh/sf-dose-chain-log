@@ -33,6 +33,7 @@ Requires Node.js 20 or newer.
 ```sh
 npm install
 npm run dev
+npm run lint
 npm test
 npm run build
 ```
