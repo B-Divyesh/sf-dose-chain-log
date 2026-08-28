@@ -1,0 +1,31 @@
+{
+  "slug": "dose-chain-log",
+  "title": "Dose Chain Log",
+  "territory": "utilities",
+  "user": "A person taking several medicines at common times or with an after-taken interval who needs to confirm a group quickly and schedule follow-ups from the actual taken time.",
+  "evidence": [
+    {
+      "url": "https://hn.algolia.com/api/v1/items/46885606",
+      "date": "2026-02-04",
+      "quote_or_summary": "A 2026 launch for an open-source Android medication reminder shows continuing demand for a privacy-respecting alternative in this sensitive category."
+    },
+    {
+      "url": "https://github.com/Futsch1/medTimer/issues/1451",
+      "date": "2026-05-31",
+      "quote_or_summary": "A MedTimer user taking around ten medicines says individual confirmation is annoying and requests grouped taken/skipped/reschedule actions."
+    }
+  ],
+  "recurrence": "Medication-reminder tools continue to launch, while users with multiple medicines identify batch confirmation as a repeated, accessibility-relevant friction point.",
+  "current_workaround": "Tap many individual reminders, set separate phone alarms, or use a general medication app that treats every dose as an independent event.",
+  "incumbents_and_gap": "Medisafe, MyTherapy, Apple Health Medications, and MedTimer provide reminders. A constrained local event log centered on group confirmation and actual-time follow-up chains is a smaller unmet workflow.",
+  "artifact_class": "android",
+  "smallest_useful_product": "Android app with user-configured medicine labels, grouped time windows, taken/skipped/late event logging, and optional follow-up timers anchored to a recorded taken time.",
+  "monetization": "one-time",
+  "constraints": "Sensitive health data remains on device and is exportable only by the user; notification reliability must follow Android requirements; include clear non-medical-advice and emergency guidance boundaries.",
+  "success_measure": "In a 30-day opt-in pilot, users with three or more concurrent medicines record 85% of configured group events and need fewer than two taps per group confirmation on median.",
+  "non_goals": ["dosage recommendations", "interaction checking", "prescription management", "caregiver surveillance", "medical records integration"],
+  "est_build_effort": "M",
+  "why_distinct": "It handles the temporal relationship among already prescribed doses, not diagnosis, prescription, or generic reminder gamification.",
+  "confidence": 4,
+  "state": "RESEARCHED"
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dose Chain Log">
+  <rect width="64" height="64" rx="8" fill="#080b13"/>
+  <path fill="#ffd166" d="M11 14h22v5h7v8h-7v-5H19v20h14v-5h7v8h-7v5H11z"/>
+  <path fill="#72f1b8" d="M40 25h13v13H40zm5 5v3h3v-3z"/>
+  <path fill="#67d4ff" d="M27 29h13v5H27z"/>
+</svg>
