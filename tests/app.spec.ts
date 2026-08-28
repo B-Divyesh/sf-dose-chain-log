@@ -93,6 +93,8 @@ test('production preview controls the app and preserves a logged dose offline', 
   expect(html).not.toContain('/@vite/client')
   expect(worker).not.toContain('/* INJECT_BUILD_ASSETS */')
   expect(worker).toMatch(/\/assets\/app-[A-Za-z0-9_-]+\.js/)
+  expect(worker).toContain('self.skipWaiting()')
+  expect(worker).toContain('self.clients.claim()')
 
   await page.getByRole('button', { name: 'Create first window' }).click()
   await page.getByLabel('Window name').fill('Evening')
