@@ -19,10 +19,19 @@ async function clearLocalData(page: import('@playwright/test').Page): Promise<vo
 
 async function waitForServiceWorkerControl(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(async () => {
-    await navigator.serviceWorker.ready
-    if (!navigator.serviceWorker.controller) {
-      await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true }))
-    }
+    if (navigator.serviceWorker.controller) return
+    // Install the listener before awaiting `ready`: activation and
+    // clients.claim() can otherwise race between the null check and listener.
+    await new Promise<void>((resolve, reject) => {
+      const finish = () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', finish)
+        resolve()
+      }
+      navigator.serviceWorker.addEventListener('controllerchange', finish)
+      navigator.serviceWorker.ready.then(() => {
+        if (navigator.serviceWorker.controller) finish()
+      }, reject)
+    })
     if (!navigator.serviceWorker.controller) throw new Error('The active service worker did not claim this page.')
   })
 }
@@ -67,7 +76,13 @@ test('opens and closes setup from the keyboard without losing focus', async ({ p
   await expect(create).toBeFocused()
 })
 
-test('persists locally and works after the network goes offline', async ({ page, context }) => {
+test('production preview controls the app and preserves a logged dose offline', async ({ page, context }) => {
+  const html = await (await page.request.get('/')).text()
+  const worker = await (await page.request.get('/sw.js')).text()
+  expect(html).not.toContain('/@vite/client')
+  expect(worker).not.toContain('/* INJECT_BUILD_ASSETS */')
+  expect(worker).toMatch(/\/assets\/app-[A-Za-z0-9_-]+\.js/)
+
   await page.getByRole('button', { name: 'Create first window' }).click()
   await page.getByLabel('Window name').fill('Evening')
   await page.getByLabel('Medicine name').fill('Tablet B')
@@ -80,6 +95,10 @@ test('persists locally and works after the network goes offline', async ({ page,
   await expect(page.getByRole('heading', { name: 'Evening' })).toBeVisible()
   await page.getByRole('button', { name: 'Mark all taken now' }).click()
   await expect(page.locator('#toast').getByText('1 medicine logged taken now.')).toBeVisible()
+  await page.reload()
+  await expect(page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).resolves.toMatch(/\/sw\.js$/)
+  await page.getByRole('button', { name: 'History' }).click()
+  await expect(page.locator('.history-list li').getByText('Tablet B')).toBeVisible()
 })
 
 test('rejects malformed backups atomically and keeps the current log usable', async ({ page }) => {

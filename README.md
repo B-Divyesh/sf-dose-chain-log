@@ -39,8 +39,11 @@ npm run build
 ```
 
 `npm test` runs Vitest unit coverage and Playwright 1.58.2 mobile Chromium
-flows, including an axe scan and an offline reload. The reproducible production
-command is exactly `npm run build`; deploy the resulting `dist/` directory.
+flows, including an axe scan and an offline reload. Playwright always starts
+from a fresh `npm run build` and exercises that bundle through `vite preview`;
+`npm run test:offline` runs only the production offline regression. The
+reproducible production command is exactly `npm run build`; deploy the
+resulting `dist/` directory.
 
 Preview the production build with `npm run preview`.
 

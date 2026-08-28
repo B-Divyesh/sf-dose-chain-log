@@ -10,6 +10,7 @@
     "test": "vitest run src && playwright test",
     "test:unit": "vitest run src",
     "test:e2e": "playwright test",
+    "test:offline": "playwright test --grep \"production preview controls\"",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
