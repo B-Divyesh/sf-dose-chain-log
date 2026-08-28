@@ -1,13 +1,35 @@
 import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/')
+async function clearLocalData(page: import('@playwright/test').Page): Promise<void> {
+  // Opening the app creates an IndexedDB connection. Clear it from the static
+  // offline page first, and await the IDB request itself rather than merely
+  // awaiting the request object.
+  await page.goto('/offline.html')
   await page.evaluate(async () => {
-    indexedDB.deleteDatabase('dose-chain-log')
     localStorage.clear()
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase('dose-chain-log')
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('The local test database remained open.'))
+    })
   })
-  await page.reload()
+}
+
+async function waitForServiceWorkerControl(page: import('@playwright/test').Page): Promise<void> {
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready
+    if (!navigator.serviceWorker.controller) {
+      await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true }))
+    }
+    if (!navigator.serviceWorker.controller) throw new Error('The active service worker did not claim this page.')
+  })
+}
+
+test.beforeEach(async ({ page }) => {
+  await clearLocalData(page)
+  await page.goto('/')
 })
 
 test('creates a group, records it in one tap, and schedules from actual time', async ({ page }) => {
@@ -33,12 +55,25 @@ test('creates a group, records it in one tap, and schedules from actual time', a
   await expect(page.locator('.history-list li')).toHaveCount(2)
 })
 
+test('opens and closes setup from the keyboard without losing focus', async ({ page }) => {
+  const create = page.getByRole('button', { name: 'Create first window' })
+  await create.focus()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Window name')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(create).toBeFocused()
+})
+
 test('persists locally and works after the network goes offline', async ({ page, context }) => {
   await page.getByRole('button', { name: 'Create first window' }).click()
   await page.getByLabel('Window name').fill('Evening')
   await page.getByLabel('Medicine name').fill('Tablet B')
   await page.getByRole('button', { name: 'Save window' }).click()
-  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await waitForServiceWorkerControl(page)
+  await expect(page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).resolves.toMatch(/\/sw\.js$/)
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByText('Offline · logging locally')).toBeVisible()

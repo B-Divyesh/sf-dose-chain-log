@@ -1,16 +1,26 @@
-const VERSION = 'dose-chain-v3'
+const VERSION = 'dose-chain-v4'
 const SHELL = `${VERSION}-shell`
 const ASSETS = `${VERSION}-assets`
 const PRECACHE = ['/', '/index.html', '/offline.html', '/manifest.webmanifest', '/icon.svg', '/assets/dose-sequencer-720.webp', '/assets/dose-sequencer-1080.webp']
 const BUILD_ASSETS = [/* INJECT_BUILD_ASSETS */]
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(SHELL).then(cache => cache.addAll([...PRECACHE, ...BUILD_ASSETS])))
-  self.skipWaiting()
+  // Do not activate a worker which has only partially populated its shell.
+  // Keeping skipWaiting in the install lifetime makes the first controller
+  // deterministic: precache -> activate -> claim existing clients.
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL)
+    await cache.addAll([...PRECACHE, ...BUILD_ASSETS])
+    await self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => ![SHELL, ASSETS].includes(key)).map(key => caches.delete(key)))).then(() => self.clients.claim()))
+  event.waitUntil((async () => {
+    const keys = await caches.keys()
+    await Promise.all(keys.filter(key => ![SHELL, ASSETS].includes(key)).map(key => caches.delete(key)))
+    await self.clients.claim()
+  })())
 })
 
 self.addEventListener('fetch', event => {

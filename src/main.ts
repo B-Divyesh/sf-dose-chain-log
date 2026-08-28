@@ -380,13 +380,17 @@ async function refresh(): Promise<void> {
 
 function registerServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return
-  navigator.serviceWorker.register('/sw.js').then(registration => {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(async registration => {
     registration.addEventListener('updatefound', () => {
       const worker = registration.installing
       worker?.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) showToast('An app update is ready. Reload to use it.')
       })
     })
+    // `ready` resolves after activation. The worker's activate lifetime claims
+    // this page, so browser clients can rely on controllerchange rather than a
+    // timer before attempting an offline navigation.
+    await navigator.serviceWorker.ready
   }).catch(() => undefined)
 }
 
@@ -397,11 +401,11 @@ window.addEventListener('hashchange', () => { const next = location.hash.slice(1
 const initialView = location.hash.slice(1) as View
 if (['today', 'history', 'setup', 'more'].includes(initialView)) view = initialView
 app.addEventListener('click', handleAction)
+registerServiceWorker()
 if (Capacitor.isNativePlatform()) {
   import('@capacitor/local-notifications').then(async ({ LocalNotifications }) => {
     nativeNotificationsEnabled = (await LocalNotifications.checkPermissions()).display === 'granted'
   })
 }
 await refresh()
-registerServiceWorker()
 verifyLicense().then(result => { if (!result.offline && result.valid !== unlocked) { unlocked = result.valid; render() } })
