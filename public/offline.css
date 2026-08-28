@@ -1,0 +1,25 @@
+body {
+  margin: 0;
+  padding: 2rem;
+  background: #080b13;
+  color: #f4f0e6;
+  font: 17px/1.55 system-ui, sans-serif;
+}
+
+main {
+  max-width: 36rem;
+  margin: 12vh auto;
+}
+
+h1 {
+  font: 700 2rem "Courier New", monospace;
+}
+
+a {
+  color: #67d4ff;
+}
+
+a:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: 3px;
+}

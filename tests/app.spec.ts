@@ -77,6 +77,17 @@ test('opens and closes setup from the keyboard without losing focus', async ({ p
 })
 
 test('production preview controls the app and preserves a logged dose offline', async ({ page, context }) => {
+  const consoleErrors: string[] = []
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  const offlineHtml = await (await page.request.get('/offline.html')).text()
+  const offlineStyles = await page.request.get('/offline.css')
+  expect(offlineHtml).not.toContain('<style')
+  expect(offlineHtml).toContain('href="/offline.css"')
+  expect(offlineStyles.ok()).toBe(true)
+  await page.goto('/offline.html')
+  await expect(page.getByRole('heading', { name: 'Offline, still local' })).toBeVisible()
+  await page.goto('/')
+
   const html = await (await page.request.get('/')).text()
   const worker = await (await page.request.get('/sw.js')).text()
   expect(html).not.toContain('/@vite/client')
@@ -99,6 +110,7 @@ test('production preview controls the app and preserves a logged dose offline', 
   await expect(page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).resolves.toMatch(/\/sw\.js$/)
   await page.getByRole('button', { name: 'History' }).click()
   await expect(page.locator('.history-list li').getByText('Tablet B')).toBeVisible()
+  expect(consoleErrors).toEqual([])
 })
 
 test('rejects malformed backups atomically and keeps the current log usable', async ({ page }) => {

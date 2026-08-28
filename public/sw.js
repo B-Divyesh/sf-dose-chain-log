@@ -1,7 +1,7 @@
-const VERSION = 'dose-chain-v4'
+const VERSION = 'dose-chain-v5'
 const SHELL = `${VERSION}-shell`
 const ASSETS = `${VERSION}-assets`
-const PRECACHE = ['/', '/index.html', '/offline.html', '/manifest.webmanifest', '/icon.svg', '/assets/dose-sequencer-720.webp', '/assets/dose-sequencer-1080.webp']
+const PRECACHE = ['/', '/index.html', '/offline.html', '/offline.css', '/manifest.webmanifest', '/icon.svg', '/assets/dose-sequencer-720.webp', '/assets/dose-sequencer-1080.webp']
 const BUILD_ASSETS = [/* INJECT_BUILD_ASSETS */]
 
 self.addEventListener('install', event => {
