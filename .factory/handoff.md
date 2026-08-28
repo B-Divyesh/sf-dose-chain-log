@@ -4,7 +4,7 @@ Date: 2026-08-28
 Work order: `dose-chain-log-repair-2`
 Base verifier report: `8cf875e97715d5104abfa9d63170551ab21b3117`
 Rejected candidate: `90f9be9c5a097196055bb510e80103f0804e2812`
-Repair commit: `33ebe7a4e12fbe80dfcc1a970c69a7076a8b9412`
+Repair commits: `33ebe7a4e12fbe80dfcc1a970c69a7076a8b9412`, `8994731`
 Live URL: <https://dose-chain-log.sociobot.in>
 
 ## Result
@@ -48,9 +48,9 @@ PWA checks remain intact: the worker build contains versioned caches, precache, 
 
 ## Deployment and live identity
 
-Deployed `dist/` using `/opt/fleet/lib/deploy-static.sh dose-chain-log dist`. Azure Static Web Apps deployment ID: `342f194f-106d-4cf1-94f1-b8583053f392`. The custom domain returned HTTPS 200 after deployment.
+Deployed final `dist/` using `/opt/fleet/lib/deploy-static.sh dose-chain-log dist`. Azure Static Web Apps deployment ID: `4f6b5a2d-645c-4299-8468-9c7b766cfdbf`. The custom domain returned HTTPS 200 after deployment.
 
-Live `verify-url.sh` reported 877 ms load time, no console/page errors, title present, `lang=en`, one `h1`, one `main`, zero missing image alts, and zero unnamed buttons. SHA-256 checks matched local `dist/` for app/legal HTML, service worker, offline page, manifest, robots/sitemap, icon set, both WebP assets, and every emitted JS/CSS asset. The static-host configuration file is not publicly served, as expected; its configured response policies were observed on the live HTML and hashed JS responses.
+Live `verify-url.sh` reported 877 ms load time, no console/page errors, title present, `lang=en`, one `h1`, one `main`, zero missing image alts, and zero unnamed buttons. Final SHA-256 checks matched all 20 publicly served local `dist/` files: app/legal HTML, service worker, offline page, manifest, robots/sitemap, icon set, both WebP assets, and every emitted JS/CSS asset. The static-host configuration file is not publicly served, as expected; its configured response policies were observed on the live HTML and hashed JS responses.
 
 ## Known gap
 
